@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { ParsedAction, ParsedActionSchema, ExplainResponse } from "./types";
 import { isValidSolanaAddress } from "./solana";
 
-const DEFAULT_MODEL = process.env.LLM_MODEL || "claude-3-5-sonnet-20241022";
+const DEFAULT_MODEL = process.env.LLM_MODEL || "claude-sonnet-5-5";
 
 function getAnthropicClient(): Anthropic | null {
   const apiKey = process.env.ANTHROPIC_API_KEY;

@@ -13,6 +13,7 @@ import {
   Sliders,
   Sparkles,
   ExternalLink,
+  Search,
 } from "lucide-react";
 import { truncateAddress } from "@/lib/solana";
 
@@ -93,6 +94,16 @@ export function Navbar({
           >
             <Sliders className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
           </button>
+
+          {/* Explain Any Tx Link */}
+          <a
+            href="/explain-tx"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-zinc-300 hover:text-white transition"
+            title="Inspect and explain any Devnet transaction signature"
+          >
+            <Search className="w-3.5 h-3.5 text-[#14F195]" />
+            <span>Explain Tx</span>
+          </a>
 
           {/* Demo Mode Button */}
           <a

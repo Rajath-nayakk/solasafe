@@ -155,9 +155,15 @@ export function ConfirmationCard({
         <div className="flex items-center gap-2 text-xs font-bold text-[#14F195] mb-2.5">
           <Sparkles className="w-4 h-4 text-purple-400" />
           <span className="tracking-wide">PLAIN-ENGLISH EXPLANATION</span>
-          {explanation.isAiGenerated && (
-            <span className="ml-auto text-[10px] font-normal text-purple-300 bg-purple-950/60 px-2 py-0.5 rounded-full border border-purple-800/50">
-              Anthropic Claude
+          {explanation.isAiGenerated ? (
+            <span className="ml-auto inline-flex items-center gap-1.5 text-[10px] font-medium text-purple-300 bg-purple-950/70 px-2.5 py-0.5 rounded-full border border-purple-500/40 shadow-sm shadow-purple-500/20">
+              <Sparkles className="w-3 h-3 text-purple-400" />
+              AI explanation (Claude)
+            </span>
+          ) : (
+            <span className="ml-auto inline-flex items-center gap-1.5 text-[10px] font-medium text-amber-300 bg-amber-950/60 px-2.5 py-0.5 rounded-full border border-amber-500/40">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              Template fallback
             </span>
           )}
         </div>

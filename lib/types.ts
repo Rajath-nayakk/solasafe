@@ -51,6 +51,31 @@ export interface RiskAnalysis {
   hasWarning: boolean;
 }
 
+export interface RecipientSecurityMeta {
+  exists: boolean;
+  executable: boolean;
+  owner: string;
+  lamports: number;
+}
+
+export interface TokenSecurityMeta {
+  mint: string;
+  mintAuthority: string | null;
+  freezeAuthority: string | null;
+  isToken2022: boolean;
+  hasTransferHook?: boolean;
+  hasPermanentDelegate?: boolean;
+  hasTransferFee?: boolean;
+  transferFeeBasisPoints?: number;
+}
+
+export interface SecurityEnrichment {
+  hasOnChainInteraction?: boolean;
+  recipientMeta?: RecipientSecurityMeta | null;
+  tokenMeta?: TokenSecurityMeta | null;
+  isOffCurve?: boolean;
+}
+
 // Contact in Address Book
 export interface Contact {
   name: string;

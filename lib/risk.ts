@@ -6,13 +6,14 @@ import {
   ParsedAction,
   Contact,
   TxHistoryItem,
+  SecurityEnrichment,
 } from "./types";
 import {
   ALLOWED_TRANSFER_PROGRAMS,
   MIN_RENT_RESERVE_SOL,
   KNOWN_SCAM_ADDRESSES,
 } from "./constants";
-import { isValidSolanaAddress } from "./solana";
+import { isValidSolanaAddress, isOffCurveAddress } from "./solana";
 
 export interface EvaluateRiskParams {
   action: ParsedAction;
@@ -23,6 +24,7 @@ export interface EvaluateRiskParams {
   txHistory: TxHistoryItem[];
   dailySpendingLimitSol?: number | null;
   dailySpentSolSoFar?: number;
+  securityEnrichment?: SecurityEnrichment;
 }
 
 /**
@@ -38,6 +40,7 @@ export function evaluateTransactionRisk({
   txHistory,
   dailySpendingLimitSol,
   dailySpentSolSoFar = 0,
+  securityEnrichment,
 }: EvaluateRiskParams): RiskAnalysis {
   const flags: RiskFlag[] = [];
 
@@ -55,7 +58,7 @@ export function evaluateTransactionRisk({
     flags.push({
       id: "INVALID_RECIPIENT",
       severity: "warning",
-      message: "Recipient address is invalid or not found on curve.",
+      message: "Recipient address is invalid or not found.",
       detail: `Provided address: ${recipient || "None"}`,
     });
   } else if (
@@ -80,7 +83,39 @@ export function evaluateTransactionRisk({
     });
   }
 
-  // 2. First-time recipient check (not in contacts and no prior history)
+  // 1c. Off-curve PDA check
+  if (recipient && isValidSolanaAddress(recipient) && isOffCurveAddress(recipient)) {
+    flags.push({
+      id: "OFF_CURVE_RECIPIENT",
+      severity: "warning",
+      message: "Recipient address is off-curve (Program Derived Address / PDA).",
+      detail: "This address does not lie on the ed25519 curve. Confirm this PDA is the intended destination.",
+    });
+  }
+
+  // 1d. Recipient Account State Check (executable program vs uninitialized account)
+  if (securityEnrichment?.recipientMeta) {
+    if (securityEnrichment.recipientMeta.executable) {
+      flags.push({
+        id: "EXECUTABLE_RECIPIENT",
+        severity: "danger",
+        message: "Recipient is an executable Program, not a user wallet!",
+        detail: `The address is owned by program loader (${securityEnrichment.recipientMeta.owner}) and is marked executable. Direct transfers may result in lost funds.`,
+      });
+    } else if (
+      !securityEnrichment.recipientMeta.exists ||
+      (securityEnrichment.recipientMeta.lamports === 0 && !securityEnrichment.hasOnChainInteraction)
+    ) {
+      flags.push({
+        id: "UNINITIALIZED_RECIPIENT",
+        severity: "warning",
+        message: "Recipient is a new, uninitialized account (0 SOL balance, no history).",
+        detail: "The destination address has zero balance and has not been created on-chain yet.",
+      });
+    }
+  }
+
+  // 2. First-time recipient check (with on-chain interaction verification)
   if (recipient && isValidSolanaAddress(recipient)) {
     const inAddressBook = contacts.some(
       (c) => c.address.toLowerCase() === recipient.toLowerCase()
@@ -88,13 +123,21 @@ export function evaluateTransactionRisk({
     const inTxHistory = txHistory.some(
       (tx) => tx.recipient.toLowerCase() === recipient.toLowerCase()
     );
+    const hasOnChain = securityEnrichment?.hasOnChainInteraction === true;
 
-    if (!inAddressBook && !inTxHistory) {
+    if (!inAddressBook && !inTxHistory && !hasOnChain) {
       flags.push({
         id: "NEW_RECIPIENT",
         severity: "warning",
         message: "New recipient: You have never interacted with this address before.",
-        detail: "Address is not in your saved contacts and has no prior transaction history.",
+        detail: "Address is not in your saved contacts and has no prior Devnet transaction history.",
+      });
+    } else if (hasOnChain && !inAddressBook) {
+      flags.push({
+        id: "ON_CHAIN_INTERACTION_FOUND",
+        severity: "info",
+        message: "Verified on-chain history: Prior interaction detected on Devnet.",
+        detail: "Found matching transaction signatures between your wallet and this recipient.",
       });
     }
   }
@@ -143,6 +186,66 @@ export function evaluateTransactionRisk({
         severity: "danger",
         message: "Untrusted Program: Transaction invokes unexpected non-standard program(s).",
         detail: `Invoked program ID: ${unknownPrograms.join(", ")}. Standard transfers only invoke System, Token, or Associated Token programs.`,
+      });
+    }
+  }
+
+  // 5b. Compute Budget / Heavy Execution Anomaly (> 200,000 CU)
+  if (simulation && simulation.computeUnits > 200000) {
+    flags.push({
+      id: "HIGH_COMPUTE_UNITS",
+      severity: "danger",
+      message: `Abnormal Compute Usage: Simulation consumed ${simulation.computeUnits.toLocaleString()} Compute Units (> 200,000 CU).`,
+      detail: "Standard transfers consume under 1,000 CU. Excessively high compute usage indicates suspicious execution or drainer hooks.",
+    });
+  }
+
+  // 5c. SPL Token Security Checks (mint authority, freeze authority, Token-2022 extensions)
+  if (securityEnrichment?.tokenMeta) {
+    const tm = securityEnrichment.tokenMeta;
+
+    if (tm.mintAuthority) {
+      flags.push({
+        id: "ACTIVE_MINT_AUTHORITY",
+        severity: "warning",
+        message: "Active Mint Authority: The token issuer can mint unlimited tokens and dilute supply.",
+        detail: `Mint Authority: ${tm.mintAuthority}`,
+      });
+    }
+
+    if (tm.freezeAuthority) {
+      flags.push({
+        id: "ACTIVE_FREEZE_AUTHORITY",
+        severity: "warning",
+        message: "Active Freeze Authority: The token creator can freeze token accounts and prevent transfers.",
+        detail: `Freeze Authority: ${tm.freezeAuthority}`,
+      });
+    }
+
+    if (tm.hasTransferHook) {
+      flags.push({
+        id: "TOKEN_2022_TRANSFER_HOOK",
+        severity: "danger",
+        message: "Token-2022 Transfer Hook: Custom contract logic executes on transfer and could block or alter payments.",
+        detail: "The token mint enforces an active TransferHook extension.",
+      });
+    }
+
+    if (tm.hasPermanentDelegate) {
+      flags.push({
+        id: "TOKEN_2022_PERMANENT_DELEGATE",
+        severity: "danger",
+        message: "Token-2022 Permanent Delegate: A delegate key can transfer or burn your tokens without your consent.",
+        detail: "The token mint has configured an irrevocable PermanentDelegate.",
+      });
+    }
+
+    if (tm.hasTransferFee) {
+      flags.push({
+        id: "TOKEN_2022_TRANSFER_FEE",
+        severity: "warning",
+        message: "Token-2022 Transfer Fee: An on-chain protocol fee is deducted on every transfer.",
+        detail: "The token mint enforces an active TransferFeeConfig extension.",
       });
     }
   }

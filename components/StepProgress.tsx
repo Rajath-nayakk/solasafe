@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import { Check, Loader2, Sparkles, Cpu, ShieldCheck } from "lucide-react";
+import { Check, Loader2, Sparkles, Cpu, ShieldCheck, FileCheck, Layers } from "lucide-react";
 
-export type PipelineStage = "idle" | "parsing" | "simulating" | "explaining" | "ready";
+export type PipelineStage = "idle" | "parsing" | "building" | "simulating" | "explaining" | "ready";
 
 interface StepProgressProps {
   currentStage: PipelineStage;
@@ -14,7 +14,8 @@ export function StepProgress({ currentStage }: StepProgressProps) {
 
   const steps = [
     { id: "parsing", label: "Intent Parsing", desc: "Anthropic Claude", icon: Sparkles },
-    { id: "simulating", label: "Devnet Simulation", desc: "RPC Pre-flight", icon: Cpu },
+    { id: "building", label: "Tx Building", desc: "Versioned Msg", icon: Layers },
+    { id: "simulating", label: "Simulation", desc: "Devnet Pre-flight", icon: Cpu },
     { id: "explaining", label: "Risk & Plain English", desc: "Security Engine", icon: ShieldCheck },
   ];
 
@@ -22,12 +23,14 @@ export function StepProgress({ currentStage }: StepProgressProps) {
     switch (stage) {
       case "parsing":
         return 0;
-      case "simulating":
+      case "building":
         return 1;
-      case "explaining":
+      case "simulating":
         return 2;
-      case "ready":
+      case "explaining":
         return 3;
+      case "ready":
+        return 4;
       default:
         return -1;
     }

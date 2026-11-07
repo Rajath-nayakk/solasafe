@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { Navbar } from "@/components/Navbar";
@@ -16,6 +17,9 @@ import {
   truncateAddress,
   buildSolTransferTx,
   buildSplTransferTx,
+  checkOnChainInteraction,
+  fetchRecipientSecurityMeta,
+  fetchTokenSecurityMeta,
 } from "@/lib/solana";
 import { simulateSolanaTransaction } from "@/lib/simulate";
 import { evaluateTransactionRisk } from "@/lib/risk";
@@ -38,6 +42,7 @@ import {
   AlertCircle,
   ExternalLink,
   ShieldCheck,
+  Search,
 } from "lucide-react";
 
 // Default seeded contacts for testing
@@ -219,8 +224,8 @@ export default function Home() {
           ? activeBalance / 2
           : activeBalance;
 
-      // 2. BUILD TRANSACTION & SIMULATE
-      setStage("simulating");
+      // 2. BUILD TRANSACTION
+      setStage("building");
 
       const recipientPubkey = new PublicKey(actionData.recipient);
 
@@ -253,7 +258,8 @@ export default function Home() {
       }
       setCurrentTx(tx);
 
-      // Simulate on Devnet
+      // 3. SIMULATE ON DEVNET
+      setStage("simulating");
       const simResult = await simulateSolanaTransaction({
         connection,
         transaction: tx,
@@ -263,6 +269,34 @@ export default function Home() {
         tokenSymbol: actionData.token,
       });
       setSimulation(simResult);
+
+      // Fetch security enrichment metadata (on-chain interactions, recipient account state, token security)
+      let hasOnChain = false;
+      let recipientMeta = null;
+      let tokenMeta = null;
+
+      try {
+        const [onChainRes, recipientRes, tokenRes] = await Promise.allSettled([
+          checkOnChainInteraction(connection, senderPubkey, recipientPubkey),
+          fetchRecipientSecurityMeta(connection, recipientPubkey),
+          actionData.token.toUpperCase() !== "SOL"
+            ? fetchTokenSecurityMeta(
+                connection,
+                new PublicKey(
+                  DEVNET_KNOWN_TOKENS.find(
+                    (t) => t.symbol.toUpperCase() === actionData.token.toUpperCase()
+                  )?.mint || DEVNET_KNOWN_TOKENS[1].mint
+                )
+              )
+            : Promise.resolve(null),
+        ]);
+
+        if (onChainRes.status === "fulfilled") hasOnChain = onChainRes.value;
+        if (recipientRes.status === "fulfilled") recipientMeta = recipientRes.value;
+        if (tokenRes.status === "fulfilled") tokenMeta = tokenRes.value;
+      } catch (secErr) {
+        console.warn("Security enrichment skipped:", secErr);
+      }
 
       // 3. DETERMINISTIC RISK EVALUATION
       const risk = evaluateTransactionRisk({
@@ -274,6 +308,11 @@ export default function Home() {
         txHistory,
         dailySpendingLimitSol: dailyLimitSol,
         dailySpentSolSoFar: dailySpentSol,
+        securityEnrichment: {
+          hasOnChainInteraction: hasOnChain,
+          recipientMeta,
+          tokenMeta,
+        },
       });
       setRiskAnalysis(risk);
 
@@ -420,6 +459,26 @@ export default function Home() {
           <p className="text-xs sm:text-sm text-zinc-400 max-w-lg mx-auto leading-relaxed">
             Convert natural language requests into Solana transactions. Simulate on-chain, audit deterministic security rules, and understand risks in plain English.
           </p>
+        </div>
+
+        {/* Mode Switcher Pill */}
+        <div className="flex items-center justify-center pt-1">
+          <div className="p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center gap-1 text-xs">
+            <span className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600/30 to-emerald-600/30 text-white font-bold border border-white/10 flex items-center gap-1.5 shadow-sm">
+              <Sparkles className="w-3.5 h-3.5 text-[#14F195]" />
+              Natural Language Assistant
+            </span>
+            <Link
+              href="/explain-tx"
+              className="px-3.5 py-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.04] transition flex items-center gap-1.5 font-medium"
+            >
+              <Search className="w-3.5 h-3.5 text-purple-400" />
+              <span>Explain Any Tx</span>
+              <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-semibold border border-purple-500/30">
+                New
+              </span>
+            </Link>
+          </div>
         </div>
 
         {/* Stepper Progress */}
