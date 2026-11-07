@@ -68,6 +68,19 @@
         <div class="absolute top-4 right-4 z-20 bg-black/70 backdrop-blur-md px-3 py-1 rounded-xl border border-white/10 text-xs font-mono text-zinc-300">
           <span id="sceneTag">Scene 1 / 6 • 0:00 - 0:10</span>
         </div>
+
+        <!-- Big Click-to-Play Overlay -->
+        <div id="bigPlayOverlay" onclick="togglePlay()" class="absolute inset-0 z-30 bg-black/70 backdrop-blur-xs flex flex-col items-center justify-center cursor-pointer group transition-all">
+          <div class="w-20 h-20 rounded-full solana-gradient flex items-center justify-center shadow-2xl shadow-[#9945FF]/50 group-hover:scale-110 transition-transform">
+            <svg class="w-10 h-10 text-black fill-current ml-1" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+          <p class="text-white font-black text-xl mt-4 tracking-wide group-hover:text-[#14F195] transition-colors">▶ Click to Play 90s Hackathon Demo Video</p>
+          <p class="text-xs text-zinc-300 mt-1 font-mono">Includes Synced Voiceover Narration & Interactive Solana UI</p>
+          <div class="mt-3.5 px-3 py-1 rounded-full bg-white/10 text-[11px] text-zinc-300 border border-white/15 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-[#14F195] animate-ping"></span>
+            <span>Click to start playback</span>
+          </div>
+        </div>
       </div>
 
       <!-- Playback Controls Bar -->
@@ -946,6 +959,8 @@
       isPlaying = !isPlaying;
       lastTimestamp = null;
       updatePlayButton();
+      const overlay = document.getElementById('bigPlayOverlay');
+      if (overlay) overlay.style.display = isPlaying ? 'none' : 'flex';
       if (!isPlaying && window.speechSynthesis) {
         window.speechSynthesis.cancel();
       } else if (isPlaying && voiceEnabled) {

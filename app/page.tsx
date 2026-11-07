@@ -478,6 +478,14 @@ export default function Home() {
                 New
               </span>
             </Link>
+
+            <a
+              href="/demo-video.html"
+              className="px-3.5 py-1.5 rounded-xl text-zinc-300 hover:text-white hover:bg-white/[0.04] transition flex items-center gap-1.5 font-medium"
+            >
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              <span>90s Demo Video</span>
+            </a>
           </div>
         </div>
 

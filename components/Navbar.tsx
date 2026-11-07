@@ -105,6 +105,16 @@ export function Navbar({
             <span>Explain Tx</span>
           </a>
 
+          {/* Demo Video Link */}
+          <a
+            href="/demo-video.html"
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-xl bg-gradient-to-r from-purple-500/20 to-emerald-500/20 hover:from-purple-500/30 hover:to-emerald-500/30 border border-purple-500/40 text-purple-200 transition shadow-sm"
+            title="Watch the 90-second animated hackathon demo video"
+          >
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+            <span>Demo Video</span>
+          </a>
+
           {/* Demo Mode Button */}
           <a
             href="/demo"
