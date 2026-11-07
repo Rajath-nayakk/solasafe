@@ -101,5 +101,6 @@ export interface ExplainResponse {
   explanation: string;
   verdict: string;
   isAiGenerated: boolean;
+  provider?: "gemini" | "anthropic" | null;
 }
 

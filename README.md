@@ -1,9 +1,12 @@
 # SolSafe 🛡️
 > **Understand before you sign.** A plain-English Solana wallet assistant with autonomous pre-signing transaction simulation, deterministic security checks, and plain-English AI explanations. Built for the AI Track Hackathon.
 
+**Live Demo**: [https://solsafe-rajath-creates-projects.vercel.app](https://solsafe-rajath-creates-projects.vercel.app)
+
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat&logo=next.js)](https://nextjs.org/)
 [![Solana Devnet](https://img.shields.io/badge/Solana-Devnet-14F195?style=flat&logo=solana)](https://solana.com/)
-[![Anthropic Claude](https://img.shields.io/badge/Anthropic-claude--sonnet--5--5-d97706?style=flat)](https://www.anthropic.com/)
+[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-gemini--2.5--flash-4285F4?style=flat&logo=google)](https://aistudio.google.com/)
+[![Anthropic Claude](https://img.shields.io/badge/Anthropic%20Claude-optional-d97706?style=flat)](https://www.anthropic.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -35,7 +38,7 @@ flowchart TD
         ParseAPI["POST /api/parse"]
         ExplainAPI["POST /api/explain"]
         ExplainTxAPI["POST /api/explain-tx"]
-        LLM["🤖 Anthropic Claude (claude-sonnet-5-5)\n(Intent Parsing & Plain-English Explainer)"]
+        LLM["🤖 LLM Provider (Gemini by default, Claude optional)\n(Intent Parsing & Plain-English Explainer)"]
     end
 
     subgraph Core ["Deterministic Security Engine (Client & Server)"]
@@ -120,7 +123,7 @@ SolSafe is uniquely powerful on Solana because of two architectural advantages:
 ## 🛠️ Tech Stack
 - **Framework**: Next.js 15 (App Router), TypeScript, Tailwind CSS v4
 - **Solana Web3**: `@solana/web3.js`, `@solana/spl-token`, `@solana/wallet-adapter-react`, `@solana/wallet-adapter-react-ui`, `@solana/wallet-adapter-phantom`
-- **AI / LLM**: Anthropic API (`claude-sonnet-5-5`) called **strictly server-side** (keys never exposed to the client)
+- **LLM Provider**: Google Gemini (`@google/genai`, default free tier from Google AI Studio) with Anthropic Claude (`claude-sonnet-5-5`, optional alternative) called **strictly server-side** (keys never exposed to the client)
 - **Validation**: Zod schema validation for all intent outputs and API payloads
 - **Testing**: Vitest unit testing suite for deterministic security rules
 
@@ -146,11 +149,18 @@ Configure your variables in `.env.local`:
 # Solana RPC Endpoint (Devnet default)
 NEXT_PUBLIC_SOLANA_RPC_URL=https://api.devnet.solana.com
 
-# Anthropic API Configuration (Server-Side Only)
+# LLM Provider Configuration ("gemini" [default] or "anthropic")
+LLM_PROVIDER=gemini
+
+# Google Gemini API Configuration (Default - Free key from Google AI Studio)
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-flash
+
+# Anthropic API Configuration (Optional alternative)
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 LLM_MODEL=claude-sonnet-5-5
 ```
-*(Note: If `ANTHROPIC_API_KEY` is not provided, SolSafe seamlessly activates its built-in deterministic heuristic fallback so hackathon demos and reviews never break! An explicit label on the confirmation card distinguishes `AI explanation (Claude)` from `Template fallback`.)*
+*(Note: If neither API key is provided, SolSafe seamlessly activates its built-in deterministic heuristic fallback so hackathon demos and reviews never break! An explicit badge on the confirmation card distinguishes `AI explanation (Gemini)`, `AI explanation (Claude)`, and `Template fallback`.)*
 
 ### 3. Run Unit Tests
 ```bash

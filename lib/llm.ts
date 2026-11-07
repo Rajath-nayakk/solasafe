@@ -1,15 +1,157 @@
+import { GoogleGenAI } from "@google/genai";
 import Anthropic from "@anthropic-ai/sdk";
 import { ParsedAction, ParsedActionSchema, ExplainResponse } from "./types";
 import { isValidSolanaAddress } from "./solana";
 
-const DEFAULT_MODEL = process.env.LLM_MODEL || "claude-sonnet-5-5";
+export type LLMProvider = "gemini" | "anthropic";
 
+export interface GenerateTextParams {
+  system?: string;
+  user: string;
+  json?: boolean;
+}
+
+export interface GenerateTextResult {
+  text: string;
+  provider: LLMProvider;
+}
+
+// In-memory cache to prevent burning free-tier quota on identical requests
+interface CacheEntry {
+  result: GenerateTextResult;
+  timestamp: number;
+}
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const llmCache = new Map<string, CacheEntry>();
+
+export function getActiveProvider(): LLMProvider {
+  const p = (process.env.LLM_PROVIDER || "gemini").toLowerCase().trim();
+  return p === "anthropic" ? "anthropic" : "gemini";
+}
+
+let geminiClient: GoogleGenAI | null = null;
+function getGeminiClient(): GoogleGenAI | null {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey.trim() === "" || apiKey === "your_gemini_api_key_here") {
+    return null;
+  }
+  if (!geminiClient) {
+    geminiClient = new GoogleGenAI({ apiKey });
+  }
+  return geminiClient;
+}
+
+let anthropicClient: Anthropic | null = null;
 function getAnthropicClient(): Anthropic | null {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey || apiKey.trim() === "" || apiKey === "your_anthropic_api_key_here") {
     return null;
   }
-  return new Anthropic({ apiKey });
+  if (!anthropicClient) {
+    anthropicClient = new Anthropic({ apiKey });
+  }
+  return anthropicClient;
+}
+
+/**
+ * Strips markdown code blocks (e.g. ```json ... ```)
+ */
+export function cleanJsonString(raw: string): string {
+  let cleaned = raw.trim();
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  }
+  return cleaned;
+}
+
+/**
+ * Central LLM generation function: routes to chosen provider (Gemini default, Claude optional)
+ * Includes in-memory request caching to protect free-tier rate limits
+ */
+export async function generateText({
+  system,
+  user,
+  json = false,
+}: GenerateTextParams): Promise<GenerateTextResult | null> {
+  const provider = getActiveProvider();
+  const cacheKey = `${provider}:${json ? "json" : "text"}:${system || ""}:${user}`;
+
+  // Check in-memory cache
+  const cached = llmCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.result;
+  }
+
+  const storeInCache = (res: GenerateTextResult) => {
+    if (llmCache.size > 200) {
+      const firstKey = llmCache.keys().next().value;
+      if (firstKey) llmCache.delete(firstKey);
+    }
+    llmCache.set(cacheKey, { result: res, timestamp: Date.now() });
+  };
+
+  // 1. Google Gemini Provider (Default - Free Tier from Google AI Studio)
+  if (provider === "gemini") {
+    const ai = getGeminiClient();
+    if (!ai) return null;
+
+    try {
+      const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+      const response = await ai.models.generateContent({
+        model,
+        contents: user,
+        config: {
+          systemInstruction: system,
+          responseMimeType: json ? "application/json" : undefined,
+          temperature: 0.1,
+        },
+      });
+
+      if (response && response.text) {
+        const res: GenerateTextResult = {
+          text: response.text.trim(),
+          provider: "gemini",
+        };
+        storeInCache(res);
+        return res;
+      }
+    } catch (err: any) {
+      console.warn("Google Gemini API call failed or rate-limited (HTTP 429):", err?.message || err);
+      return null;
+    }
+  }
+
+  // 2. Anthropic Claude Provider (Optional)
+  if (provider === "anthropic") {
+    const anthropic = getAnthropicClient();
+    if (!anthropic) return null;
+
+    try {
+      const model = process.env.LLM_MODEL || "claude-sonnet-5-5";
+      const response = await anthropic.messages.create({
+        model,
+        max_tokens: 500,
+        temperature: 0.1,
+        system: system || "",
+        messages: [{ role: "user", content: user }],
+      });
+
+      const firstBlock = response.content[0];
+      if (firstBlock && firstBlock.type === "text") {
+        const res: GenerateTextResult = {
+          text: firstBlock.text.trim(),
+          provider: "anthropic",
+        };
+        storeInCache(res);
+        return res;
+      }
+    } catch (err: any) {
+      console.warn("Anthropic Claude API call failed or rate-limited:", err?.message || err);
+      return null;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -49,7 +191,7 @@ JSON Schema:
 }`;
 
 /**
- * Parse user text command using Anthropic Claude (with smart deterministic fallback)
+ * Parse user text command using LLM (routes to Gemini or Claude, with automatic retry and smart fallback)
  */
 export async function parseIntentWithLLM({
   text,
@@ -60,11 +202,7 @@ export async function parseIntentWithLLM({
   addressBook: Record<string, string>; // name -> address
   tokenList?: Array<{ symbol: string; mint: string; decimals: number }>;
 }): Promise<ParsedAction> {
-  const anthropic = getAnthropicClient();
-
-  if (anthropic) {
-    try {
-      const userPrompt = `Address Book (name -> address):
+  const userPrompt = `Address Book (name -> address):
 ${JSON.stringify(addressBook, null, 2)}
 
 Available Tokens:
@@ -72,34 +210,57 @@ ${JSON.stringify(tokenList, null, 2)}
 
 User request: "${text}"
 
-Respond with ONLY raw JSON.`;
+Respond with ONLY raw JSON matching schema.`;
 
-      const response = await anthropic.messages.create({
-        model: DEFAULT_MODEL,
-        max_tokens: 400,
-        temperature: 0,
+  // First Attempt
+  const firstTry = await generateText({
+    system: INTENT_PARSING_SYSTEM_PROMPT,
+    user: userPrompt,
+    json: true,
+  });
+
+  if (firstTry) {
+    try {
+      const cleaned = cleanJsonString(firstTry.text);
+      const parsed = JSON.parse(cleaned);
+      const validated = ParsedActionSchema.safeParse(parsed);
+      if (validated.success) {
+        return validated.data;
+      }
+    } catch {
+      // First try JSON parse failed, proceed to retry
+    }
+
+    // Output was invalid, retry once
+    try {
+      const retryPrompt = `${userPrompt}\n\nIMPORTANT: Your previous output could not be parsed as valid JSON. You MUST return ONLY valid JSON matching the schema.`;
+      const secondTry = await generateText({
         system: INTENT_PARSING_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userPrompt }],
+        user: retryPrompt,
+        json: true,
       });
 
-      // Extract text content
-      const firstBlock = response.content[0];
-      if (firstBlock && firstBlock.type === "text") {
-        let rawJson = firstBlock.text.trim();
-        // Strip markdown backticks if model wrapped in ```json
-        if (rawJson.startsWith("```")) {
-          rawJson = rawJson.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-        }
-
-        const parsed = JSON.parse(rawJson);
-        const validated = ParsedActionSchema.safeParse(parsed);
-        if (validated.success) {
-          return validated.data;
+      if (secondTry) {
+        const cleanedRetry = cleanJsonString(secondTry.text);
+        const parsedRetry = JSON.parse(cleanedRetry);
+        const validatedRetry = ParsedActionSchema.safeParse(parsedRetry);
+        if (validatedRetry.success) {
+          return validatedRetry.data;
         }
       }
-    } catch (err) {
-      console.warn("Anthropic API call failed for intent parsing, using robust fallback:", err);
+    } catch (retryErr) {
+      console.warn("LLM intent parsing retry failed:", retryErr);
     }
+
+    // If both attempts produce invalid JSON, return a helpful clarification
+    return {
+      action: "unknown",
+      token: "SOL",
+      amount: 0,
+      recipient: null,
+      recipientLabel: null,
+      clarification: `I could not clearly understand "${text}". Try saying "Send 0.1 SOL to Amit" or specifying the recipient address.`,
+    };
   }
 
   // Robust Fallback Intent Parser (ensures demo works reliably 100% of the time)
@@ -129,7 +290,6 @@ export function fallbackParseIntent(
   }
 
   // Match: "send [amount] [token] to [recipient]"
-  // e.g., "send 0.1 SOL to Amit", "send 5 USDC to Bob", "send half SOL to 9x..."
   const transferMatch = clean.match(
     /(?:send|transfer|pay)\s+([0-9.]+|half|all|everything|max)\s*([a-zA-Z0-9]+)?\s+to\s+([a-zA-Z0-9_-]+)/i
   );
@@ -208,7 +368,7 @@ export function fallbackParseIntent(
 const EXPLAIN_SYSTEM_PROMPT = `You are SolSafe's Plain-English Explainer. Your mission is to explain blockchain transactions to everyday users so they clearly understand what will happen BEFORE they approve the signature in their wallet.
 
 CRITICAL RULES:
-1. Keep the explanation under 4 sentences.
+1. Keep the explanation strictly under 4 sentences.
 2. Use simple, friendly, everyday English. Avoid dense blockchain jargon.
 3. Clearly mention the amount, the token, the recipient, and what will happen to the sender's balance.
 4. Highlight any risk flags or warnings prominently.
@@ -228,47 +388,37 @@ export async function explainWithLLM({
   simulation: any;
   riskAnalysis: any;
 }): Promise<ExplainResponse> {
-  const anthropic = getAnthropicClient();
-
-  if (anthropic) {
-    try {
-      const userPrompt = `Transaction Data:
+  const userPrompt = `Transaction Data:
 Parsed Action: ${JSON.stringify(action, null, 2)}
 Simulation Results: ${JSON.stringify(simulation, null, 2)}
 Risk Analysis: ${JSON.stringify(riskAnalysis, null, 2)}
 
 Provide a plain-English explanation and verdict. Respond with ONLY raw JSON matching { "explanation": "...", "verdict": "..." }.`;
 
-      const response = await anthropic.messages.create({
-        model: DEFAULT_MODEL,
-        max_tokens: 400,
-        temperature: 0.2,
-        system: EXPLAIN_SYSTEM_PROMPT,
-        messages: [{ role: "user", content: userPrompt }],
-      });
+  const result = await generateText({
+    system: EXPLAIN_SYSTEM_PROMPT,
+    user: userPrompt,
+    json: true,
+  });
 
-      const firstBlock = response.content[0];
-      if (firstBlock && firstBlock.type === "text") {
-        let rawJson = firstBlock.text.trim();
-        if (rawJson.startsWith("```")) {
-          rawJson = rawJson.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-        }
-
-        const parsed = JSON.parse(rawJson);
-        if (parsed.explanation && parsed.verdict) {
-          return {
-            explanation: parsed.explanation,
-            verdict: parsed.verdict,
-            isAiGenerated: true,
-          };
-        }
+  if (result) {
+    try {
+      const cleaned = cleanJsonString(result.text);
+      const parsed = JSON.parse(cleaned);
+      if (parsed.explanation && parsed.verdict) {
+        return {
+          explanation: parsed.explanation,
+          verdict: parsed.verdict,
+          isAiGenerated: true,
+          provider: result.provider,
+        };
       }
     } catch (err) {
-      console.warn("Anthropic API call failed for explanation, falling back to template:", err);
+      console.warn("Failed to parse LLM explanation JSON, falling back to template:", err);
     }
   }
 
-  // Graceful fallback template (demo never breaks!)
+  // Graceful fallback template (shown when keys are not configured or on HTTP 429 rate limits)
   return fallbackExplain(action, simulation, riskAnalysis);
 }
 
@@ -294,6 +444,7 @@ export function fallbackExplain(
       explanation: `You are about to transfer ${amountStr} to ${targetName}. Our pre-signing security check detected high-risk flags: ${dangerFlags} Please review this transaction with extreme caution before approving.`,
       verdict: "High-risk transaction detected: verify details carefully before signing.",
       isAiGenerated: false,
+      provider: null,
     };
   }
 
@@ -307,6 +458,7 @@ export function fallbackExplain(
       explanation: `This transaction will send ${amountStr} to ${targetName}. Notice: ${warningFlags} The estimated network fee is ${feeStr}.`,
       verdict: "Review recommended: new recipient or unusual transfer percentage.",
       isAiGenerated: false,
+      provider: null,
     };
   }
 
@@ -314,6 +466,6 @@ export function fallbackExplain(
     explanation: `This transaction will transfer ${amountStr} to ${targetName}. The Solana network fee is minimal (${feeStr}), and your remaining balance is healthy.`,
     verdict: "Standard transfer with normal risk profile.",
     isAiGenerated: false,
+    provider: null,
   };
 }
-

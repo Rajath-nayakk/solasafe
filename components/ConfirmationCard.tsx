@@ -158,7 +158,7 @@ export function ConfirmationCard({
           {explanation.isAiGenerated ? (
             <span className="ml-auto inline-flex items-center gap-1.5 text-[10px] font-medium text-purple-300 bg-purple-950/70 px-2.5 py-0.5 rounded-full border border-purple-500/40 shadow-sm shadow-purple-500/20">
               <Sparkles className="w-3 h-3 text-purple-400" />
-              AI explanation (Claude)
+              AI explanation ({explanation.provider === "anthropic" ? "Claude" : "Gemini"})
             </span>
           ) : (
             <span className="ml-auto inline-flex items-center gap-1.5 text-[10px] font-medium text-amber-300 bg-amber-950/60 px-2.5 py-0.5 rounded-full border border-amber-500/40">
