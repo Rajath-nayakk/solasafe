@@ -115,3 +115,4 @@ describe("LLM Provider & Utility Tests", () => {
     expect(res.verdict).toContain("High-risk transaction detected");
   });
 });
+
