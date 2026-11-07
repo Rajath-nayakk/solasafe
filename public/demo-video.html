@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolSafe - 90-Second Hackathon Demo Video Studio</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.05); }
+    }
+    .solana-gradient {
+      background: linear-gradient(135deg, #9945FF 0%, #14F195 100%);
+    }
+    .solana-text-gradient {
+      background: linear-gradient(135deg, #9945FF 0%, #14F195 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+  </style>
+</head>
+<body class="bg-[#060813] text-zinc-100 min-h-screen p-4 sm:p-6 font-sans antialiased selection:bg-[#9945FF] selection:text-white">
+
+  <!-- Header -->
+  <header class="max-w-6xl mx-auto mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+    <div>
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl solana-gradient flex items-center justify-center font-black text-black text-sm shadow-lg shadow-[#9945FF]/30">
+          🛡️
+        </div>
+        <h1 class="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+          SolSafe <span class="text-xs px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-medium">Demo Video Studio</span>
+        </h1>
+      </div>
+      <p class="text-xs text-zinc-400 mt-1">
+        90-Second Automated Video Player, Synced Voiceover & Canvas Video Recorder for AI Track Hackathon Submission.
+      </p>
+    </div>
+
+    <div class="flex items-center gap-2.5">
+      <button id="recordBtn" onclick="toggleRecording()" class="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-red-600/30 transition-all">
+        <span class="w-2 h-2 rounded-full bg-white animate-pulse" id="recordDot"></span>
+        <span id="recordBtnText">Record & Export (.webm)</span>
+      </button>
+      <a href="https://solsafe-sigma.vercel.app" target="_blank" class="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs border border-white/10 transition-colors flex items-center gap-1">
+        <span>Live App</span>
+        <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Video Canvas Column (2 Cols) -->
+    <div class="lg:col-span-2 space-y-4">
+      <!-- 16:9 Screen Container -->
+      <div class="relative rounded-2xl overflow-hidden border border-white/15 bg-black shadow-2xl shadow-purple-950/20 aspect-video flex items-center justify-center">
+        <canvas id="videoCanvas" width="1280" height="720" class="w-full h-full object-contain"></canvas>
+
+        <!-- Recording Indicator Overlay -->
+        <div id="recordingBadge" class="hidden absolute top-4 left-4 z-20 flex items-center gap-2 bg-red-600/90 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-white shadow-lg animate-pulse">
+          <span class="w-2 h-2 rounded-full bg-white"></span>
+          <span>REC • <span id="recTime">0:00</span></span>
+        </div>
+
+        <!-- Current Scene Tag Overlay -->
+        <div class="absolute top-4 right-4 z-20 bg-black/70 backdrop-blur-md px-3 py-1 rounded-xl border border-white/10 text-xs font-mono text-zinc-300">
+          <span id="sceneTag">Scene 1 / 6 • 0:00 - 0:10</span>
+        </div>
+      </div>
+
+      <!-- Playback Controls Bar -->
+      <div class="rounded-xl bg-[#0c101d] border border-white/10 p-4 space-y-3">
+        <div class="flex items-center gap-3">
+          <button id="playBtn" onclick="togglePlay()" class="w-10 h-10 rounded-xl solana-gradient flex items-center justify-center text-black font-extrabold hover:opacity-90 transition-transform active:scale-95 shadow-md shadow-[#9945FF]/20">
+            <svg id="playIcon" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="pauseIcon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          </button>
+
+          <button onclick="restartVideo()" class="p-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white border border-white/5 text-xs font-medium" title="Restart">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          </button>
+
+          <!-- Timeline Slider -->
+          <div class="flex-1 flex items-center gap-2">
+            <span id="currentTimeLabel" class="text-xs font-mono text-zinc-400 w-10 text-right">0:00</span>
+            <input id="timelineSlider" type="range" min="0" max="90" step="0.1" value="0" oninput="seekTo(this.value)" class="flex-1 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-[#14F195]">
+            <span class="text-xs font-mono text-zinc-500 w-10">1:30</span>
+          </div>
+
+          <!-- Voiceover & Speed Settings -->
+          <div class="flex items-center gap-2 border-l border-white/10 pl-3">
+            <button id="voiceToggle" onclick="toggleVoice()" class="p-2 rounded-lg bg-emerald-500/10 text-[#14F195] border border-emerald-500/30 text-xs font-medium flex items-center gap-1" title="Voiceover Audio">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+              <span id="voiceLabel">Voice On</span>
+            </button>
+
+            <select id="speedSelect" onchange="setSpeed(this.value)" class="bg-black/40 border border-white/10 rounded-lg text-xs px-2 py-1.5 text-zinc-300 focus:outline-none">
+              <option value="1">1.0x</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Scene Jump Buttons -->
+        <div class="grid grid-cols-6 gap-1.5 pt-1 border-t border-white/[0.06]">
+          <button onclick="jumpToScene(0)" class="scene-btn p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] font-mono text-zinc-400 text-center transition-colors">01. Hook</button>
+          <button onclick="jumpToScene(10)" class="scene-btn p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] font-mono text-zinc-400 text-center transition-colors">02. Wallet</button>
+          <button onclick="jumpToScene(20)" class="scene-btn p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] font-mono text-zinc-400 text-center transition-colors">03. AI Safe</button>
+          <button onclick="jumpToScene(50)" class="scene-btn p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] font-mono text-zinc-400 text-center transition-colors">04. Settle</button>
+          <button onclick="jumpToScene(60)" class="scene-btn p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] font-mono text-zinc-400 text-center transition-colors">05. Danger</button>
+          <button onclick="jumpToScene(85)" class="scene-btn p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] font-mono text-zinc-400 text-center transition-colors">06. Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Script & Teleprompter Column (1 Col) -->
+    <div class="space-y-4 flex flex-col">
+      <!-- Teleprompter Box -->
+      <div class="rounded-2xl bg-[#0c101d] border border-white/10 p-5 flex-1 flex flex-col shadow-xl">
+        <div class="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-[#14F195] animate-ping"></span>
+            <h2 class="text-xs font-bold uppercase tracking-wider text-white">Live Teleprompter</h2>
+          </div>
+          <span class="text-[11px] font-mono text-purple-400" id="promptScene">Scene 1 / 6</span>
+        </div>
+
+        <!-- Active Narration Highlight -->
+        <div class="p-3.5 rounded-xl bg-purple-950/20 border border-purple-500/30 mb-4 min-h-[90px] flex items-center">
+          <p id="activeScriptText" class="text-sm font-medium text-white leading-relaxed">
+            “Most people sign crypto transactions without understanding them. That’s called blind signing, and it’s a common way wallets get drained. SolSafe fixes that.”
+          </p>
+        </div>
+
+        <!-- Full Script List with Active Tracking -->
+        <div class="space-y-2 overflow-y-auto max-h-[360px] pr-1 text-xs" id="scriptList">
+          <!-- Item 1 -->
+          <div id="scriptItem0" class="p-2.5 rounded-lg bg-white/5 border border-purple-500/40 transition-all cursor-pointer" onclick="jumpToScene(0)">
+            <div class="flex items-center justify-between text-[11px] font-mono text-purple-300 font-bold mb-1">
+              <span>0:00 - 0:10 • The Problem</span>
+              <span>10s</span>
+            </div>
+            <p class="text-zinc-300">“Most people sign crypto transactions without understanding them. That’s called blind signing, and it’s a common way wallets get drained. SolSafe fixes that.”</p>
+          </div>
+
+          <!-- Item 2 -->
+          <div id="scriptItem1" class="p-2.5 rounded-lg bg-white/[0.02] border border-white/5 opacity-60 transition-all cursor-pointer" onclick="jumpToScene(10)">
+            <div class="flex items-center justify-between text-[11px] font-mono text-zinc-400 font-bold mb-1">
+              <span>0:10 - 0:20 • Connect Wallet</span>
+              <span>10s</span>
+            </div>
+            <p class="text-zinc-300">“SolSafe is a plain-English wallet assistant on Solana. I’ll connect my wallet on Devnet.”</p>
+          </div>
+
+          <!-- Item 3 -->
+          <div id="scriptItem2" class="p-2.5 rounded-lg bg-white/[0.02] border border-white/5 opacity-60 transition-all cursor-pointer" onclick="jumpToScene(20)">
+            <div class="flex items-center justify-between text-[11px] font-mono text-zinc-400 font-bold mb-1">
+              <span>0:20 - 0:50 • Safe Flow & Simulation</span>
+              <span>30s</span>
+            </div>
+            <p class="text-zinc-300">“I type a normal sentence. The AI turns it into a transaction. Before I sign anything, SolSafe simulates it on Solana and runs deterministic safety rules. Here’s a plain-English explanation: who gets paid, how much, the fee, and my balance after. The risk is low, so I confirm.”</p>
+          </div>
+
+          <!-- Item 4 -->
+          <div id="scriptItem3" class="p-2.5 rounded-lg bg-white/[0.02] border border-white/5 opacity-60 transition-all cursor-pointer" onclick="jumpToScene(50)">
+            <div class="flex items-center justify-between text-[11px] font-mono text-zinc-400 font-bold mb-1">
+              <span>0:50 - 1:00 • Finality & Explorer</span>
+              <span>10s</span>
+            </div>
+            <p class="text-zinc-300">“Phantom signs, Solana settles it in about a second, and here’s the transaction on Solana Explorer.”</p>
+          </div>
+
+          <!-- Item 5 -->
+          <div id="scriptItem4" class="p-2.5 rounded-lg bg-white/[0.02] border border-white/5 opacity-60 transition-all cursor-pointer" onclick="jumpToScene(60)">
+            <div class="flex items-center justify-between text-[11px] font-mono text-zinc-400 font-bold mb-1">
+              <span>1:00 - 1:25 • Drain Protection Gate</span>
+              <span>25s</span>
+            </div>
+            <p class="text-zinc-300">“Now a risky one. SolSafe flags a huge share of my balance going to a brand-new address and locks the confirm button until I acknowledge the risk. The safety decisions come from fixed rules, not the AI, so they can’t be talked around.”</p>
+          </div>
+
+          <!-- Item 6 -->
+          <div id="scriptItem5" class="p-2.5 rounded-lg bg-white/[0.02] border border-white/5 opacity-60 transition-all cursor-pointer" onclick="jumpToScene(85)">
+            <div class="flex items-center justify-between text-[11px] font-mono text-zinc-400 font-bold mb-1">
+              <span>1:25 - 1:30 • Closing Call to Action</span>
+              <span>5s</span>
+            </div>
+            <p class="text-zinc-300">“SolSafe: understand before you sign. Built for the AI Track. Code and live demo are linked below.”</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Canvas & Animation Engine
+    const canvas = document.getElementById('videoCanvas');
+    const ctx = canvas.getContext('2d');
+    const W = 1280;
+    const H = 720;
+
+    let currentTime = 0;
+    const totalDuration = 90; // 90 seconds
+    let isPlaying = false;
+    let playbackSpeed = 1.0;
+    let lastTimestamp = null;
+    let voiceEnabled = true;
+
+    // Web Speech Synthesis
+    let currentSpeechUtterance = null;
+    let lastSpokenSceneIndex = -1;
+
+    // MediaRecorder for WebM Video Export
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let isRecording = false;
+
+    // Script & Storyboard Data
+    const scenes = [
+      {
+        id: 0,
+        start: 0,
+        end: 10,
+        title: "The Problem: Blind Signing",
+        voice: "Most people sign crypto transactions without understanding them. That's called blind signing, and it's a common way wallets get drained. SolSafe fixes that.",
+        subtitle: "Blind signing drains wallets. SolSafe fixes that."
+      },
+      {
+        id: 1,
+        start: 10,
+        end: 20,
+        title: "Connect Phantom & Devnet",
+        voice: "SolSafe is a plain-English wallet assistant on Solana. I'll connect my wallet on Devnet.",
+        subtitle: "Phantom Wallet connected • 2.500 SOL on Solana Devnet"
+      },
+      {
+        id: 2,
+        start: 20,
+        end: 50,
+        title: "Safe Flow: Send 0.1 SOL to Amit",
+        voice: "I type a normal sentence. The AI turns it into a transaction. Before I sign anything, SolSafe simulates it on Solana and runs deterministic safety rules. Here's a plain-English explanation: who gets paid, how much, the fee, and my balance after. The risk is low, so I confirm.",
+        subtitle: "Natural Language -> On-Chain Simulation -> Plain-English Explanation"
+      },
+      {
+        id: 3,
+        start: 50,
+        end: 60,
+        title: "Phantom Signing & Solana Settlement",
+        voice: "Phantom signs, Solana settles it in about a second, and here's the transaction on Solana Explorer.",
+        subtitle: "Sub-second Devnet Finality • Verified on Solana Explorer"
+      },
+      {
+        id: 4,
+        start: 60,
+        end: 85,
+        title: "Risky Flow: 90%+ Drain Guard Locked",
+        voice: "Now a risky one. SolSafe flags a huge share of my balance going to a brand-new address and locks the confirm button until I acknowledge the risk. The safety decisions come from fixed rules, not the AI, so they can't be talked around.",
+        subtitle: "Deterministic Risk Engine: Locked Confirm Gate protects user"
+      },
+      {
+        id: 5,
+        start: 85,
+        end: 90,
+        title: "Closing & Submission Links",
+        voice: "SolSafe: understand before you sign. Built for the AI Track. Code and live demo are linked below.",
+        subtitle: "SolSafe • Understand before you sign • AI Track"
+      }
+    ];
+
+    function getCurrentScene(time) {
+      for (let i = 0; i < scenes.length; i++) {
+        if (time >= scenes[i].start && time < scenes[i].end) {
+          return { scene: scenes[i], index: i };
+        }
+      }
+      return { scene: scenes[scenes.length - 1], index: scenes.length - 1 };
+    }
+
+    // Main Render Loop
+    function render(time) {
+      ctx.clearRect(0, 0, W, H);
+
+      const { scene, index } = getCurrentScene(time);
+      const sceneProgress = (time - scene.start) / (scene.end - scene.start);
+
+      // 1. Draw Deep Cyber Navy Background & Ambient Glows
+      const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+      bgGrad.addColorStop(0, '#060813');
+      bgGrad.addColorStop(1, '#0c1022');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, W, H);
+
+      // Subtle Background Grid
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.025)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      }
+      for (let y = 0; y < H; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      }
+
+      // Accent Ambient Radial Glows
+      const rad1 = ctx.createRadialGradient(W * 0.25, H * 0.3, 10, W * 0.25, H * 0.3, 400);
+      rad1.addColorStop(0, 'rgba(153, 69, 255, 0.12)');
+      rad1.addColorStop(1, 'transparent');
+      ctx.fillStyle = rad1;
+      ctx.fillRect(0, 0, W, H);
+
+      const rad2 = ctx.createRadialGradient(W * 0.75, H * 0.6, 10, W * 0.75, H * 0.6, 350);
+      rad2.addColorStop(0, 'rgba(20, 241, 149, 0.08)');
+      rad2.addColorStop(1, 'transparent');
+      ctx.fillStyle = rad2;
+      ctx.fillRect(0, 0, W, H);
+
+      // 2. Render Sticky Navbar Mockup
+      drawNavbar(time);
+
+      // 3. Render Scene Specific Content
+      if (index === 0) {
+        renderScene1_Hook(sceneProgress);
+      } else if (index === 1) {
+        renderScene2_Connect(sceneProgress);
+      } else if (index === 2) {
+        renderScene3_SafeFlow(sceneProgress);
+      } else if (index === 3) {
+        renderScene4_PhantomExplorer(sceneProgress);
+      } else if (index === 4) {
+        renderScene5_DrainGuard(sceneProgress);
+      } else if (index === 5) {
+        renderScene6_Closing(sceneProgress);
+      }
+
+      // 4. Render Lower Third Subtitle Bar
+      drawSubtitleBar(scene.subtitle);
+
+      // Update UI Teleprompter & Slider
+      updateUI(time, index);
+    }
+
+    // Component: Mock Navbar
+    function drawNavbar(time) {
+      const isConnected = time >= 13;
+      ctx.fillStyle = 'rgba(12, 16, 29, 0.85)';
+      ctx.fillRect(80, 24, W - 160, 56);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.strokeRect(80, 24, W - 160, 56);
+
+      // Logo + Name
+      ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('🛡️ SolSafe', 105, 59);
+
+      // Devnet Pill
+      ctx.fillStyle = 'rgba(20, 241, 149, 0.15)';
+      ctx.beginPath();
+      ctx.roundRect(240, 39, 105, 26, 13);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(20, 241, 149, 0.4)';
+      ctx.stroke();
+
+      ctx.fillStyle = '#14F195';
+      ctx.beginPath();
+      ctx.arc(254, 52, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.font = '600 12px monospace';
+      ctx.fillText('Devnet', 266, 56);
+
+      // Right Wallet Area
+      if (!isConnected) {
+        // Connect Button
+        const grad = ctx.createLinearGradient(W - 250, 0, W - 100, 0);
+        grad.addColorStop(0, '#9945FF');
+        grad.addColorStop(1, '#14F195');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.roundRect(W - 250, 36, 140, 32, 12);
+        ctx.fill();
+
+        ctx.font = 'bold 12px system-ui';
+        ctx.fillStyle = '#000000';
+        ctx.fillText('Connect Phantom', W - 232, 56);
+      } else {
+        // Connected Pill
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+        ctx.beginPath();
+        ctx.roundRect(W - 280, 36, 170, 32, 12);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.stroke();
+
+        ctx.font = 'bold 11px monospace';
+        ctx.fillStyle = '#14F195';
+        ctx.fillText('2.500 SOL', W - 268, 56);
+
+        ctx.font = '11px monospace';
+        ctx.fillStyle = '#a1a1aa';
+        ctx.fillText('4Nd1...3N4P', W - 188, 56);
+      }
+    }
+
+    // Scene 1: Hook (0:00 - 0:10)
+    function renderScene1_Hook(prog) {
+      // Large Hero Headline
+      ctx.textAlign = 'center';
+      ctx.font = '900 52px system-ui, sans-serif';
+      
+      const grad = ctx.createLinearGradient(W/2 - 250, 0, W/2 + 250, 0);
+      grad.addColorStop(0, '#9945FF');
+      grad.addColorStop(0.5, '#ffffff');
+      grad.addColorStop(1, '#14F195');
+      ctx.fillStyle = grad;
+      ctx.fillText('Understand before you sign', W / 2, 210);
+
+      ctx.font = '400 18px system-ui, sans-serif';
+      ctx.fillStyle = '#a1a1aa';
+      ctx.fillText('The plain-English Solana wallet assistant with pre-signing transaction simulation & risk checks.', W / 2, 255);
+
+      // Central Blind Signing Warning Card
+      ctx.fillStyle = 'rgba(15, 20, 35, 0.85)';
+      ctx.beginPath();
+      ctx.roundRect(W / 2 - 340, 300, 680, 240, 20);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Card Header
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 18px system-ui';
+      ctx.fillStyle = '#ef4444';
+      ctx.fillText('⚠️ The Threat: Blind Signing in Web3', W / 2 - 305, 345);
+
+      ctx.font = '400 14px system-ui';
+      ctx.fillStyle = '#d4d4d8';
+      ctx.fillText('Every day, users approve transactions with opaque hex data and unreadable accounts:', W / 2 - 305, 385);
+
+      // Raw unreadable hex code mock
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.beginPath();
+      ctx.roundRect(W / 2 - 305, 410, 610, 50, 10);
+      ctx.fill();
+      ctx.font = '12px monospace';
+      ctx.fillStyle = '#ef4444';
+      ctx.fillText('0x020104a3b890f1111111111111111111... [Unknown Program Call - Drain Warning]', W / 2 - 290, 440);
+
+      // Solution Callout
+      ctx.font = 'bold 15px system-ui';
+      ctx.fillStyle = '#14F195';
+      ctx.fillText('🛡️ SolSafe translates raw bytecode into simple, plain English before your wallet signs.', W / 2 - 305, 500);
+
+      ctx.textAlign = 'left';
+    }
+
+    // Scene 2: Connect Wallet (0:10 - 0:20)
+    function renderScene2_Connect(prog) {
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 36px system-ui';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('Connecting to Solana Devnet', W / 2, 180);
+
+      ctx.font = '16px system-ui';
+      ctx.fillStyle = '#a1a1aa';
+      ctx.fillText('Fast, zero-risk experimentation using Devnet RPC simulation', W / 2, 220);
+
+      // Center Phantom Connect Box
+      const boxW = 440, boxH = 260;
+      ctx.fillStyle = 'rgba(15, 20, 35, 0.9)';
+      ctx.beginPath();
+      ctx.roundRect(W / 2 - boxW / 2, 270, boxW, boxH, 20);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(153, 69, 255, 0.4)';
+      ctx.stroke();
+
+      // Ghost Icon
+      ctx.font = '48px system-ui';
+      ctx.fillText('👻', W / 2, 345);
+
+      ctx.font = 'bold 20px system-ui';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(prog < 0.4 ? 'Connect Phantom Wallet' : 'Wallet Connected!', W / 2, 390);
+
+      ctx.font = '13px monospace';
+      ctx.fillStyle = prog < 0.4 ? '#a1a1aa' : '#14F195';
+      ctx.fillText(prog < 0.4 ? 'Click top right to connect' : '4Nd1mBQtrMJVYVfKf2PJy9NZ268dFY28n8Vkn7R3N4P1', W / 2, 425);
+
+      if (prog >= 0.4) {
+        ctx.fillStyle = 'rgba(20, 241, 149, 0.15)';
+        ctx.beginPath();
+        ctx.roundRect(W / 2 - 80, 455, 160, 32, 10);
+        ctx.fill();
+        ctx.font = 'bold 13px system-ui';
+        ctx.fillStyle = '#14F195';
+        ctx.fillText('Balance: 2.500 SOL', W / 2, 476);
+      }
+
+      // Simulated Animated Mouse Pointer moving to connect button
+      if (prog < 0.4) {
+        const mx = W / 2 + (W - 200 - W / 2) * (prog / 0.4);
+        const my = 400 + (50 - 400) * (prog / 0.4);
+        drawCursor(mx, my);
+      }
+
+      ctx.textAlign = 'left';
+    }
+
+    // Scene 3: Safe Flow - Send 0.1 SOL to Amit (0:20 - 0:50)
+    function renderScene3_SafeFlow(prog) {
+      const isCardVisible = prog > 0.45;
+
+      // 1. Prompt Input Box
+      ctx.fillStyle = 'rgba(12, 16, 29, 0.9)';
+      ctx.beginPath();
+      ctx.roundRect(W / 2 - 380, 115, 760, 70, 16);
+      ctx.fill();
+      ctx.strokeStyle = prog < 0.4 ? 'rgba(153, 69, 255, 0.8)' : 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Typing simulation
+      const fullText = "Send 0.1 SOL to Amit";
+      const charCount = Math.min(fullText.length, Math.floor(prog * 35));
+      const typed = fullText.slice(0, charCount);
+
+      ctx.font = '500 18px system-ui';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(typed + (prog < 0.35 && Math.sin(Date.now() / 150) > 0 ? '|' : ''), W / 2 - 350, 156);
+
+      // 2. Stepper Bar (Parsing -> Building -> Simulating -> Explaining)
+      const steps = ['1. Parse Intent', '2. Build Tx', '3. Simulate On-Chain', '4. Explain Risks'];
+      const activeStep = Math.min(3, Math.floor((prog - 0.15) / 0.08));
+
+      ctx.fillStyle = 'rgba(12, 16, 29, 0.7)';
+      ctx.beginPath();
+      ctx.roundRect(W / 2 - 380, 200, 760, 48, 12);
+      ctx.fill();
+
+      for (let s = 0; s < 4; s++) {
+        const sx = W / 2 - 340 + s * 180;
+        const isCompleted = prog > 0.45 || s <= activeStep;
+        ctx.fillStyle = isCompleted ? '#14F195' : '#71717a';
+        ctx.beginPath();
+        ctx.arc(sx, 224, 7, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = (isCompleted ? 'bold ' : '') + '12px system-ui';
+        ctx.fillStyle = isCompleted ? '#ffffff' : '#71717a';
+        ctx.fillText(steps[s], sx + 14, 228);
+      }
+
+      // 3. Confirmation Card
+      if (isCardVisible) {
+        const cardW = 760, cardH = 350;
+        ctx.fillStyle = 'rgba(12, 16, 29, 0.95)';
+        ctx.beginPath();
+        ctx.roundRect(W / 2 - cardW / 2, 265, cardW, cardH, 20);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(20, 241, 149, 0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Header: Action + Risk Badge
+        ctx.font = '900 24px system-ui';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('Send 0.1 SOL', W / 2 - 340, 310);
+
+        // Green SAFE Badge
+        ctx.fillStyle = 'rgba(20, 241, 149, 0.15)';
+        ctx.beginPath();
+        ctx.roundRect(W / 2 + 230, 285, 110, 32, 10);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(20, 241, 149, 0.4)';
+        ctx.stroke();
+        ctx.font = 'bold 13px system-ui';
+        ctx.fillStyle = '#14F195';
+        ctx.fillText('🛡️ SAFE (100)', W / 2 + 242, 306);
+
+        // Plain English AI Box
+        ctx.fillStyle = 'rgba(153, 69, 255, 0.08)';
+        ctx.beginPath();
+        ctx.roundRect(W / 2 - 340, 335, 680, 95, 14);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(153, 69, 255, 0.3)';
+        ctx.stroke();
+
+        ctx.font = 'bold 11px system-ui';
+        ctx.fillStyle = '#9945FF';
+        ctx.fillText('PLAIN-ENGLISH AI EXPLANATION (GEMINI)', W / 2 - 325, 360);
+
+        ctx.font = '400 13px system-ui';
+        ctx.fillStyle = '#e4e4e7';
+        ctx.fillText('This transaction will transfer 0.1 SOL to Amit (7xKX...sAsU). The Solana network fee is minimal (~0.000005 SOL),', W / 2 - 325, 385);
+        ctx.fillText('and your remaining balance will stay healthy at ~2.399 SOL. No high-risk contracts or drain flags detected.', W / 2 - 325, 408);
+
+        // Stats Grid: Recipient, Fee, Compute, Balance After
+        const stats = [
+          { label: 'Recipient', val: 'Amit (7xKX...sAsU)' },
+          { label: 'Estimated Fee', val: '0.000005 SOL' },
+          { label: 'Compute Units', val: '450 CU (Safe)' },
+          { label: 'Balance After', val: '2.399995 SOL' }
+        ];
+
+        for (let i = 0; i < 4; i++) {
+          const colX = W / 2 - 340 + i * 175;
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+          ctx.beginPath();
+          ctx.roundRect(colX, 445, 160, 60, 10);
+          ctx.fill();
+
+          ctx.font = '10px system-ui';
+          ctx.fillStyle = '#71717a';
+          ctx.fillText(stats[i].label.toUpperCase(), colX + 10, 465);
+
+          ctx.font = 'bold 12px system-ui';
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(stats[i].val, colX + 10, 488);
+        }
+
+        // Confirm Button
+        const btnGrad = ctx.createLinearGradient(W / 2 - 120, 0, W / 2 + 120, 0);
+        btnGrad.addColorStop(0, '#14F195');
+        btnGrad.addColorStop(1, '#0fa367');
+        ctx.fillStyle = btnGrad;
+        ctx.beginPath();
+        ctx.roundRect(W / 2 - 120, 530, 240, 44, 12);
+        ctx.fill();
+
+        ctx.font = 'bold 14px system-ui';
+        ctx.fillStyle = '#000000';
+        ctx.textAlign = 'center';
+        ctx.fillText('Confirm & Sign (Phantom)', W / 2, 557);
+        ctx.textAlign = 'left';
+      }
+    }
+
+    // Scene 4: Phantom Signing & Settlement (0:50 - 1:00)
+    function renderScene4_PhantomExplorer(prog) {
+      if (prog < 0.5) {
+        // Phantom Wallet Modal Popup Overlay
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(0, 0, W, H);
+
+        const pw = 420, ph = 380;
+        ctx.fillStyle = '#18181b';
+        ctx.beginPath();
+        ctx.roundRect(W / 2 - pw / 2, H / 2 - ph / 2, pw, ph, 20);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(153, 69, 255, 0.5)';
+        ctx.stroke();
+
+        ctx.font = 'bold 18px system-ui';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText('👻 Phantom Approval', W / 2, H / 2 - 130);
+
+        ctx.font = '13px system-ui';
+        ctx.fillStyle = '#a1a1aa';
+        ctx.fillText('Approve transaction on Solana Devnet', W / 2, H / 2 - 100);
+
+        // Summary inside modal
+        ctx.fillStyle = '#27272a';
+        ctx.beginPath();
+        ctx.roundRect(W / 2 - 170, H / 2 - 70, 340, 110, 12);
+        ctx.fill();
+
+        ctx.font = 'bold 14px system-ui';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('Transfer 0.1 SOL', W / 2, H / 2 - 35);
+
+        ctx.font = '11px monospace';
+        ctx.fillStyle = '#a1a1aa';
+        ctx.fillText('To: 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU', W / 2, H / 2 - 10);
+        ctx.fillText('Network Fee: ~0.000005 SOL', W / 2, H / 2 + 15);
+
+        // Approve Button
+        ctx.fillStyle = '#9945FF';
+        ctx.beginPath();
+        ctx.roundRect(W / 2 - 170, H / 2 + 75, 340, 44, 12);
+        ctx.fill();
+
+        ctx.font = 'bold 14px system-ui';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('Approve', W / 2, H / 2 + 102);
+
+        drawCursor(W / 2 + 50, H / 2 + 95);
+        ctx.textAlign = 'left';
+      } else {
+        // Finalized Success Screen with Solana Explorer Link
+        ctx.fillStyle = 'rgba(12, 16, 29, 0.95)';
+        ctx.beginPath();
+        ctx.roundRect(W / 2 - 340, 200, 680, 340, 20);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(20, 241, 149, 0.4)';
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        ctx.font = '48px system-ui';
+        ctx.fillText('✅', W / 2, 270);
+
+        ctx.font = '900 24px system-ui';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('Transaction Confirmed on Devnet!', W / 2, 320);
+
+        ctx.font = '14px system-ui';
+        ctx.fillStyle = '#a1a1aa';
+        ctx.fillText('Finalized in 412ms with 0.000005 SOL fee.', W / 2, 350);
+
+        // Explorer Box
+        ctx.fillStyle = 'rgba(20, 241, 149, 0.08)';
+        ctx.beginPath();
+        ctx.roundRect(W / 2 - 270, 380, 540, 80, 12);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(20, 241, 149, 0.3)';
+        ctx.stroke();
+
+        ctx.font = 'bold 12px system-ui';
+        ctx.fillStyle = '#14F195';
+        ctx.fillText('🔗 VIEW ON SOLANA EXPLORER (DEVNET)', W / 2, 410);
+
+        ctx.font = '11px monospace';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('5VwE7h8k9A1zB2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8s9T0u1V2w3X4y5Z6', W / 2, 435);
+
+        ctx.textAlign = 'left';
+      }
+    }
+
+    // Scene 5: Drain Guard Locked (1:00 - 1:25)
+    function renderScene5_DrainGuard(prog) {
+      // 1. Prompt Box
+      ctx.fillStyle = 'rgba(12, 16, 29, 0.9)';
+      ctx.beginPath();
+      ctx.roundRect(W / 2 - 380, 115, 760, 65, 16);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)';
+      ctx.stroke();
+
+      ctx.font = '500 18px system-ui';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('Send 5 SOL to Unknown', W / 2 - 350, 155);
+
+      // 2. High Risk Warning Card
+      const cardW = 760, cardH = 430;
+      ctx.fillStyle = 'rgba(12, 16, 29, 0.95)';
+      ctx.beginPath();
+      ctx.roundRect(W / 2 - cardW / 2, 195, cardW, cardH, 20);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Header: Risky Badge
+      ctx.font = '900 24px system-ui';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('Send 5 SOL', W / 2 - 340, 240);
+
+      // RED RISKY BADGE
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+      ctx.beginPath();
+      ctx.roundRect(W / 2 + 210, 215, 130, 32, 10);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.5)';
+      ctx.stroke();
+      ctx.font = 'bold 13px system-ui';
+      ctx.fillStyle = '#ef4444';
+      ctx.fillText('🚨 RISKY (10/100)', W / 2 + 222, 236);
+
+      // Deterministic Flags Box
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.08)';
+      ctx.beginPath();
+      ctx.roundRect(W / 2 - 340, 265, 680, 120, 12);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.3)';
+      ctx.stroke();
+
+      ctx.font = 'bold 12px system-ui';
+      ctx.fillStyle = '#ef4444';
+      ctx.fillText('🚨 CRITICAL DETERMINISTIC RISK FLAGS (RULE-BASED SECURITY ENGINE):', W / 2 - 325, 290);
+
+      ctx.font = '13px system-ui';
+      ctx.fillStyle = '#fca5a5';
+      ctx.fillText('• DRAIN WARNING: Transferring >90% of total wallet balance (5 SOL / 2.5 SOL). Exceeds total funds!', W / 2 - 325, 318);
+      ctx.fillText('• UNKNOWN RECIPIENT: 0 prior on-chain interactions on Devnet with recipient address.', W / 2 - 325, 342);
+      ctx.fillText('• RENT EXEMPTION: Balance would drop below 0.002 SOL threshold.', W / 2 - 325, 366);
+
+      // Plain English Explainer
+      ctx.font = '13px system-ui';
+      ctx.fillStyle = '#d4d4d8';
+      ctx.fillText('AI Verdict: High-risk transaction detected: verify details carefully before signing. Fixed rules enforce security.', W / 2 - 340, 415);
+
+      // Safety Gate Checkbox
+      const isChecked = prog > 0.6;
+      ctx.fillStyle = isChecked ? 'rgba(20, 241, 149, 0.2)' : 'rgba(255, 255, 255, 0.05)';
+      ctx.beginPath();
+      ctx.roundRect(W / 2 - 340, 440, 680, 40, 8);
+      ctx.fill();
+      ctx.strokeStyle = isChecked ? 'rgba(20, 241, 149, 0.5)' : 'rgba(255, 255, 255, 0.1)';
+      ctx.stroke();
+
+      // Checkbox square
+      ctx.fillStyle = isChecked ? '#14F195' : 'transparent';
+      ctx.fillRect(W / 2 - 325, 452, 16, 16);
+      ctx.strokeRect(W / 2 - 325, 452, 16, 16);
+      if (isChecked) {
+        ctx.fillStyle = '#000000';
+        ctx.font = 'bold 12px system-ui';
+        ctx.fillText('✓', W / 2 - 322, 465);
+      }
+
+      ctx.font = '12px system-ui';
+      ctx.fillStyle = isChecked ? '#14F195' : '#a1a1aa';
+      ctx.fillText('I understand the critical risk flags above and wish to proceed anyway.', W / 2 - 298, 465);
+
+      // Locked vs Unlocked Buttons
+      if (!isChecked) {
+        // Locked Confirm Button
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.beginPath();
+        ctx.roundRect(W / 2 - 140, 500, 280, 42, 10);
+        ctx.fill();
+        ctx.font = 'bold 13px system-ui';
+        ctx.fillStyle = '#71717a';
+        ctx.textAlign = 'center';
+        ctx.fillText('🔒 Confirm Blocked by Safety Gate', W / 2, 526);
+        ctx.textAlign = 'left';
+      } else {
+        // Cancel Button (Recommended)
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.roundRect(W / 2 - 140, 500, 280, 42, 10);
+        ctx.fill();
+        ctx.font = 'bold 13px system-ui';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText('🛑 Cancel & Protect Wallet', W / 2, 526);
+        ctx.textAlign = 'left';
+      }
+    }
+
+    // Scene 6: Closing & Submission (1:25 - 1:30)
+    function renderScene6_Closing(prog) {
+      ctx.textAlign = 'center';
+
+      ctx.font = '900 54px system-ui';
+      const grad = ctx.createLinearGradient(W/2 - 250, 0, W/2 + 250, 0);
+      grad.addColorStop(0, '#9945FF');
+      grad.addColorStop(1, '#14F195');
+      ctx.fillStyle = grad;
+      ctx.fillText('SolSafe', W / 2, 230);
+
+      ctx.font = '600 24px system-ui';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('Understand before you sign.', W / 2, 280);
+
+      ctx.font = '400 16px system-ui';
+      ctx.fillStyle = '#a1a1aa';
+      ctx.fillText('Built for the Solana AI Track Hackathon', W / 2, 320);
+
+      // Links Box
+      ctx.fillStyle = 'rgba(15, 20, 35, 0.9)';
+      ctx.beginPath();
+      ctx.roundRect(W / 2 - 320, 370, 640, 160, 20);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.stroke();
+
+      ctx.font = 'bold 14px monospace';
+      ctx.fillStyle = '#14F195';
+      ctx.fillText('🌐 Live Demo: https://solsafe-sigma.vercel.app', W / 2, 420);
+
+      ctx.font = 'bold 14px monospace';
+      ctx.fillStyle = '#9945FF';
+      ctx.fillText('📦 GitHub: https://github.com/Rajath-nayakk/solasafe.git', W / 2, 460);
+
+      ctx.font = '12px system-ui';
+      ctx.fillStyle = '#71717a';
+      ctx.fillText('Next.js 15 • @solana/web3.js • Google Gemini & Anthropic • Devnet', W / 2, 495);
+
+      ctx.textAlign = 'left';
+    }
+
+    // Lower Subtitle Bar
+    function drawSubtitleBar(text) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+      ctx.fillRect(80, H - 75, W - 160, 45);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.strokeRect(80, H - 75, W - 160, 45);
+
+      ctx.textAlign = 'center';
+      ctx.font = '500 14px system-ui, sans-serif';
+      ctx.fillStyle = '#e4e4e7';
+      ctx.fillText(text, W / 2, H - 47);
+      ctx.textAlign = 'left';
+    }
+
+    // Cursor Animation Helper
+    function drawCursor(x, y) {
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 16, y + 12);
+      ctx.lineTo(x + 8, y + 14);
+      ctx.lineTo(x + 4, y + 22);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Playback Loop
+    function loop(timestamp) {
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      const delta = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+
+      if (isPlaying) {
+        currentTime += delta * playbackSpeed;
+        if (currentTime >= totalDuration) {
+          currentTime = totalDuration;
+          isPlaying = false;
+          updatePlayButton();
+          if (isRecording) stopRecording();
+        }
+      }
+
+      render(currentTime);
+
+      // Trigger Web Speech synthesis for new scenes
+      const { scene, index } = getCurrentScene(currentTime);
+      if (isPlaying && voiceEnabled && index !== lastSpokenSceneIndex) {
+        speakNarration(scene.voice);
+        lastSpokenSceneIndex = index;
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    function togglePlay() {
+      isPlaying = !isPlaying;
+      lastTimestamp = null;
+      updatePlayButton();
+      if (!isPlaying && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      } else if (isPlaying && voiceEnabled) {
+        const { scene, index } = getCurrentScene(currentTime);
+        speakNarration(scene.voice);
+        lastSpokenSceneIndex = index;
+      }
+    }
+
+    function updatePlayButton() {
+      const playIcon = document.getElementById('playIcon');
+      const pauseIcon = document.getElementById('pauseIcon');
+      if (isPlaying) {
+        playIcon.classList.add('hidden');
+        pauseIcon.classList.remove('hidden');
+      } else {
+        playIcon.classList.remove('hidden');
+        pauseIcon.classList.add('hidden');
+      }
+    }
+
+    function restartVideo() {
+      currentTime = 0;
+      lastSpokenSceneIndex = -1;
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      render(0);
+      if (!isPlaying) togglePlay();
+    }
+
+    function seekTo(val) {
+      currentTime = parseFloat(val);
+      lastSpokenSceneIndex = -1;
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      render(currentTime);
+    }
+
+    function jumpToScene(sec) {
+      currentTime = sec;
+      lastSpokenSceneIndex = -1;
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      render(currentTime);
+      if (!isPlaying) togglePlay();
+    }
+
+    function setSpeed(val) {
+      playbackSpeed = parseFloat(val);
+    }
+
+    function toggleVoice() {
+      voiceEnabled = !voiceEnabled;
+      const btn = document.getElementById('voiceToggle');
+      const label = document.getElementById('voiceLabel');
+      if (voiceEnabled) {
+        label.textContent = "Voice On";
+        btn.classList.add('text-[#14F195]', 'bg-emerald-500/10', 'border-emerald-500/30');
+        btn.classList.remove('text-zinc-400', 'bg-white/5');
+      } else {
+        label.textContent = "Muted";
+        btn.classList.remove('text-[#14F195]', 'bg-emerald-500/10', 'border-emerald-500/30');
+        btn.classList.add('text-zinc-400', 'bg-white/5');
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+      }
+    }
+
+    function speakNarration(text) {
+      if (!voiceEnabled || !window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 1.0 * playbackSpeed;
+      utter.pitch = 1.0;
+      window.speechSynthesis.speak(utter);
+    }
+
+    function updateUI(time, sceneIndex) {
+      // Time format
+      const mins = Math.floor(time / 60);
+      const secs = Math.floor(time % 60).toString().padStart(2, '0');
+      document.getElementById('currentTimeLabel').textContent = `${mins}:${secs}`;
+      document.getElementById('timelineSlider').value = time;
+
+      // Teleprompter
+      const { scene } = getCurrentScene(time);
+      document.getElementById('activeScriptText').textContent = scene.voice;
+      document.getElementById('promptScene').textContent = `Scene ${sceneIndex + 1} / 6`;
+      document.getElementById('sceneTag').textContent = `Scene ${sceneIndex + 1} / 6 • ${scene.start}s - ${scene.end}s`;
+
+      // Highlight script item
+      for (let i = 0; i < 6; i++) {
+        const item = document.getElementById(`scriptItem${i}`);
+        if (i === sceneIndex) {
+          item.classList.add('bg-white/10', 'border-purple-500/50', 'opacity-100');
+          item.classList.remove('opacity-60', 'bg-white/[0.02]');
+        } else {
+          item.classList.remove('bg-white/10', 'border-purple-500/50', 'opacity-100');
+          item.classList.add('opacity-60', 'bg-white/[0.02]');
+        }
+      }
+
+      if (isRecording) {
+        document.getElementById('recTime').textContent = `${mins}:${secs}`;
+      }
+    }
+
+    // MediaRecorder Video Export (.webm)
+    function toggleRecording() {
+      if (!isRecording) {
+        startRecording();
+      } else {
+        stopRecording();
+      }
+    }
+
+    function startRecording() {
+      recordedChunks = [];
+      const stream = canvas.captureStream(30); // 30 FPS high-quality capture
+      
+      try {
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9' });
+      } catch (e) {
+        mediaRecorder = new MediaRecorder(stream);
+      }
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = 'solsafe-90sec-hackathon-demo.webm';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        }, 100);
+      };
+
+      mediaRecorder.start();
+      isRecording = true;
+
+      // Update UI
+      document.getElementById('recordBtnText').textContent = "Stop & Save Video";
+      document.getElementById('recordBtn').classList.replace('bg-red-600', 'bg-amber-600');
+      document.getElementById('recordingBadge').classList.remove('hidden');
+
+      // Restart and play from beginning
+      restartVideo();
+    }
+
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+      isRecording = false;
+
+      // Update UI
+      document.getElementById('recordBtnText').textContent = "Record & Export (.webm)";
+      document.getElementById('recordBtn').classList.replace('bg-amber-600', 'bg-red-600');
+      document.getElementById('recordingBadge').classList.add('hidden');
+    }
+
+    // Start render loop
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
